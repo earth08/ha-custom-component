@@ -75,38 +75,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 async def async_setup_platform(hass, config, async_add_entities,
                                discovery_info=None):
     """Set up the Broadlink IR Climate platform."""
-    name = config.get(CONF_NAME)
-    host = config.get(CONF_HOST)
-
-    min_temp = config.get(CONF_MIN_TEMP)
-    max_temp = config.get(CONF_MAX_TEMP)
-    precision = config.get(CONF_PRECISION)
-
-    temp_sensor_entity_id = config.get(CONF_TEMP_SENSOR)
-    conf_operations = config.get(CONF_CUSTOMIZE).get(CONF_OPERATIONS, {}) or\
-        DEFAULT_OPERATION_LIST
-
-    custom_operations = {}
-    operation_list = []
-    for an_op in conf_operations:
-        for op, op_conf in an_op.items():
-            op = op.lower()
-            operation_list.append(op)
-            if not bool(op_conf):
-                continue
-            if CONF_MIN_TEMP in op_conf:
-                op_conf[CONF_TARGET_TEMP] = op_conf[CONF_MIN_TEMP]
-            if CONF_FAN_MODES in op_conf:
-                op_conf[CONF_CURRENT_FAN_MODE] = op_conf[CONF_FAN_MODES][0]
-            if CONF_SWING_MODES in op_conf:
-                op_conf[CONF_CURRENT_SWING_MODE] = op_conf[CONF_SWING_MODES][0]
-
-            custom_operations[op] = op_conf
-
-    operation_list = [STATE_OFF] + operation_list
-    fan_list = config.get(CONF_CUSTOMIZE).get(CONF_FAN_MODES, []) or DEFAULT_FAN_MODE_LIST
-    swing_list = config.get(CONF_CUSTOMIZE).get(CONF_SWING_MODES, [])
-
     ircodes_ini_file = config.get(CONF_IRCODES_INI)
 
     if ircodes_ini_file.startswith("/"):
@@ -114,71 +82,77 @@ async def async_setup_platform(hass, config, async_add_entities,
 
     ircodes_ini_path = hass.config.path(ircodes_ini_file)
 
-    if os.path.exists(ircodes_ini_path):
-        ircodes_ini = ConfigParser()
-        ircodes_ini.read(ircodes_ini_path)
-    else:
+    if not os.path.exists(ircodes_ini_path):
         _LOGGER.error("The ini file was not found. (%s)", ircodes_ini_path)
         return
 
-    async_add_entities([
-        BroadlinkIRClimate(
-            hass, name, host, ircodes_ini,
-            min_temp, max_temp, precision,
-            temp_sensor_entity_id, operation_list,
-            fan_list, swing_list, custom_operations)
-    ])
+    ircodes_ini = ConfigParser()
+    ircodes_ini.read(ircodes_ini_path)
+
+    async_add_entities([BroadlinkIRClimate(hass, config, ircodes_ini)])
 
 
 class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
     # Implement one of these methods.
-    def __init__(self, hass, name, host, ircodes_ini,
-                 min_temp, max_temp, precision,
-                 temp_sensor_entity_id,
-                 operation_list, fan_list, swing_list,
-                 custom_operations):
+    def __init__(self, hass, config, ircodes_ini):
 
         """Initialize the Broadlink IR Climate device."""
         self.hass = hass
-        self._name = name
-        self._host = host
 
-        self._min_temp = min_temp
-        self._max_temp = max_temp
-        self._target_temperature = min_temp
-        self._precision = precision
+        self._name = config.get(CONF_NAME)
+        self._host = config.get(CONF_HOST)
+
+        self._min_temp = config.get(CONF_MIN_TEMP)
+        self._max_temp = config.get(CONF_MAX_TEMP)
         self._unit_of_measurement = hass.config.units.temperature_unit
+        self._precision = config.get(CONF_PRECISION)
+        self._target_temperature = self._min_temp
 
-        self._operation_list = operation_list
-        self._fan_list = fan_list
-
+        self._commands_ini = ircodes_ini
         self._current_operation = STATE_OFF
-        self._current_fan_mode = fan_list[0]
-
+        self._last_on_operation = None
         self._current_temperature = self._target_temperature
 
-        self._temp_sensor_entity_id = temp_sensor_entity_id
-        self._swing_list = swing_list
-        self._current_swing_mode = None
+        self._fan_list = config.get(CONF_CUSTOMIZE).get(
+            CONF_FAN_MODES, DEFAULT_FAN_MODE_LIST)
+        self._current_fan_mode = self._fan_list[0]
 
         self._support_flags = DEFAULT_SUPPORT_FLAGS
+
+        self._current_swing_mode = None
+        self._swing_list = config.get(CONF_CUSTOMIZE).get(CONF_SWING_MODES, [])
         if self._swing_list:
             self._current_swing_mode = self._swing_list[0]
             self._support_flags = self._support_flags | SUPPORT_SWING_MODE
+
+        self._operation_list = [STATE_OFF]
+        self._custom_operations = {}
+        for an_op in config.get(CONF_CUSTOMIZE).get(CONF_OPERATIONS,
+                                                    DEFAULT_OPERATION_LIST):
+            for op, op_conf in an_op.items():
+                op = op.lower()
+                self._operation_list.append(op)
+                if not bool(op_conf):
+                    continue
+                if CONF_MIN_TEMP in op_conf:
+                    op_conf[CONF_TARGET_TEMP] = op_conf[CONF_MIN_TEMP]
+                if CONF_FAN_MODES in op_conf:
+                    op_conf[CONF_CURRENT_FAN_MODE] = op_conf[CONF_FAN_MODES][0]
+                if CONF_SWING_MODES in op_conf:
+                    op_conf[CONF_CURRENT_SWING_MODE] = op_conf[CONF_SWING_MODES][0]
+           
+                self._custom_operations[op] = op_conf
 
         self._common_temp_conf = (self._min_temp, self._max_temp,
                                   self._precision, self._target_temperature)
         self._common_fan_conf = (self._fan_list, self._current_fan_mode)
         self._common_swing_conf = (self._swing_list, self._current_swing_mode)
-        self._custom_operations = custom_operations
-
-        self._last_on_operation = None
-
-        self._commands_ini = ircodes_ini
 
         self._temp_lock = asyncio.Lock()
 
-        if temp_sensor_entity_id:
+        self._temp_sensor_entity_id = config.get(CONF_TEMP_SENSOR)
+
+        if self._temp_sensor_entity_id:
             async_track_state_change(
                 hass, temp_sensor_entity_id,
                 self._async_temp_sensor_changed)
@@ -264,12 +238,8 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
 
             _LOGGER.debug("Sending command [%s %s] to %s", section, value,
                           self._name)
-            _LOGGER.debug("IR Code: %s", command)
-            service_data_json = {
-                'host':  self._host,
-                'packet': payload
-            }
-            _LOGGER.debug("json: %s", service_data_json)
+            service_data_json = {'host':  self._host, 'packet': payload}
+            # _LOGGER.debug("json: %s", service_data_json)
 
             await self.hass.services.async_call('broadlink', 'send',
                                                 service_data_json )
@@ -426,18 +396,18 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
         await self.send_ir()
         await self.async_update_ha_state()
 
-    async def async_set_fan_mode(self, fan):
+    async def async_set_fan_mode(self, fan_mode):
         """Set new target fan mode."""
-        self._current_fan_mode = fan
+        self._current_fan_mode = fan_mode
 
         if not (self._current_operation.lower() == 'off'):
             await self.send_ir()
 
         await self.async_update_ha_state()
 
-    async def async_set_swing_mode(self, swing):
+    async def async_set_swing_mode(self, swing_mode):
         """Set new target swing mode."""
-        self._current_swing_mode = swing
+        self._current_swing_mode = swing_mode
 
         if not (self._current_operation.lower() == 'off'):
             await self.send_ir()
