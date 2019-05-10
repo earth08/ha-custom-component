@@ -40,9 +40,6 @@ climate:
     precision: .5
     temp_sensor: sensor.living_room_temperature
     customize:
-      operations:
-        - cool
-        - heat
       fan_modes:
         # common fan modes
         - low
