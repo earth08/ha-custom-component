@@ -8,10 +8,13 @@ import homeassistant.helpers.config_validation as cv
 
 from homeassistant.components.climate import ClimateDevice, PLATFORM_SCHEMA
 from homeassistant.components.climate.const import (
-    STATE_HEAT, STATE_COOL, STATE_AUTO, STATE_DRY,
-    ATTR_OPERATION_MODE, SUPPORT_OPERATION_MODE,
-    SUPPORT_TARGET_TEMPERATURE, SUPPORT_FAN_MODE,
-    SUPPORT_ON_OFF, SUPPORT_SWING_MODE)
+    HVAC_MODE_AUTO, HVAC_MODE_COOL, HVAC_MODE_DRY,
+    HVAC_MODE_HEAT, HVAC_MODE_OFF,
+    ATTR_HVAC_MODE, ATTR_FAN_MODE,
+    ATTR_SWING_MODE,
+    SUPPORT_TARGET_TEMPERATURE,
+    SUPPORT_FAN_MODE,
+    SUPPORT_SWING_MODE)
 from homeassistant.const import (
     ATTR_UNIT_OF_MEASUREMENT, ATTR_TEMPERATURE,
     CONF_NAME, CONF_HOST, CONF_MAC, CONF_TIMEOUT,
@@ -27,8 +30,6 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SUPPORT_FLAGS = (
     SUPPORT_FAN_MODE |
-    SUPPORT_OPERATION_MODE |
-    SUPPORT_ON_OFF |
     SUPPORT_TARGET_TEMPERATURE)
 
 CONF_IRCODES_INI = 'ircodes_ini'
@@ -48,8 +49,8 @@ DEFAULT_RETRY = 3
 DEFAULT_MIN_TEMP = 16
 DEFAULT_MAX_TEMP = 30
 DEFAULT_PRECISION = PRECISION_WHOLE
-DEFAULT_OPERATION_LIST = [STATE_AUTO]
-DEFAULT_FAN_MODE_LIST = ['auto']
+DEFAULT_OPERATION_LIST = [HVAC_MODE_AUTO]
+DEFAULT_FAN_MODE_LIST = [HVAC_MODE_AUTO]
 DEFAULT_SWING_MODE_LIST = []
 
 CUSTOMIZE_SCHEMA = vol.Schema({
@@ -317,7 +318,7 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
         return self._precision
 
     @property
-    def current_operation(self):
+    def hvac_mode(self):
         """Return current operation ie. heat, cool."""
         return self._current_operation
 
@@ -327,27 +328,27 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
         return self._last_on_operation
 
     @property
-    def operation_list(self):
+    def hvac_modes(self):
         """Return the list of available operation modes."""
         return self._operation_list
 
     @property
-    def current_fan_mode(self):
+    def fan_mode(self):
         """Return the fan setting."""
         return self._current_fan_mode
 
     @property
-    def fan_list(self):
+    def fan_modes(self):
         """Return the list of available fan modes."""
         return self._fan_list
 
     @property
-    def current_swing_mode(self):
+    def swing_mode(self):
         """Return the swing setting."""
         return self._current_swing_mode
 
     @property
-    def swing_list(self):
+    def swing_modes(self):
         """List of available swing modes."""
         return self._swing_list
 
@@ -355,10 +356,6 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
     def supported_features(self):
         """Return the list of supported features."""
         return self._support_flags
-
-    @property
-    def is_on(self):
-        return None
 
     @property
     def device_state_attributes(self) -> dict:
@@ -385,13 +382,13 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
 
         await self.async_update_ha_state()
 
-    async def async_set_operation_mode(self, operation_mode):
+    async def async_set_hvac_mode(self, hvac_mode):
         """Set new target temperature."""
-        self._set_custom_operation(operation_mode)
-        if not operation_mode == 'off':
-            self._last_on_operation = operation_mode
+        self._set_custom_operation(hvac_mode)
+        if not hvac_mode == HVAC_MODE_OFF:
+            self._last_on_operation = hvac_mode
 
-        self._current_operation = operation_mode
+        self._current_operation = hvac_mode
 
         await self.send_ir()
         await self.async_update_ha_state()
@@ -432,10 +429,11 @@ class BroadlinkIRClimate(ClimateDevice, RestoreEntity):
         last_state = await self.async_get_last_state()
 
         if last_state is not None:
+            _LOGGER.debug(last_state)
             self._target_temperature = last_state.attributes['temperature']
-            self._current_operation = last_state.attributes['operation_mode']
-            self._current_fan_mode = last_state.attributes['fan_mode']
-            self._current_swing_mode = last_state.attributes['swing_mode']
+            #self._current_operation = last_state.attributes['operation_mode']
+            self._current_fan_mode = last_state.attributes[ATTR_FAN_MODE]
+            self._current_swing_mode = last_state.attributes[ATTR_SWING_MODE]
 
             if 'last_on_operation' in last_state.attributes:
                 self._last_on_operation = last_state.attributes['last_on_operation']
