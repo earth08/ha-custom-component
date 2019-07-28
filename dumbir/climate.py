@@ -73,7 +73,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_PRECISION, default=DEFAULT_PRECISION): vol.In(
         [PRECISION_TENTHS, PRECISION_HALVES, PRECISION_WHOLE]),
     vol.Optional(CONF_TEMP_SENSOR): cv.entity_id,
-    vol.Optional(CONF_CUSTOMIZE, default={}): CUSTOMIZE_SCHEMA
+    vol.Optional(CONF_CUSTOMIZE, default={}): CUSTOMIZE_SCHEMA,
+    vol.Optional(CONF_TEMPERATURE_SENSOR): cv.entity_id,
+    vol.Optional(CONF_HUMIDITY_SENSOR): cv.entity_id,
+    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
 })
 
 
@@ -155,6 +158,26 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         self._temp_lock = asyncio.Lock()
         # to suppress false error from Alexa component
         self._current_temperature = 21.0
+        '''
+        self._temp_sensor_entity_id = config.get(CONF_TEMP_SENSOR)
+        
+        self._temperature_sensor = config.get(CONF_TEMPERATURE_SENSOR)
+        self._humidity_sensor = config.get(CONF_HUMIDITY_SENSOR)
+        self._power_sensor = config.get(CONF_POWER_SENSOR)
+
+        self._current_temperature = None
+        self._current_humidity = None
+
+        if self._temp_sensor_entity_id:
+            async_track_state_change(
+                hass, temp_sensor_entity_id,
+                self._async_temp_sensor_changed)
+
+            sensor_state = hass.states.get(temp_sensor_entity_id)
+
+            if sensor_state:
+                self._async_update_current_temp(sensor_state)
+        '''
 
     def _get_command_value(self, section):
         swing_mode = ''
@@ -237,9 +260,87 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             await self.hass.services.async_call('broadlink', 'send',
                                                 service_data_json )
 
+    '''
+    async def _async_temp_sensor_changed(self, entity_id, old_state, new_state):
+        """Handle temperature changes."""
+        if new_state is None:
+            return
+
+        self._async_update_current_temp(new_state)
+        await self.async_update_ha_state()
+    '''
+
     @property
     def precision(self) -> float:
         return self._precision
+
+    '''
+    async def _async_humidity_sensor_changed(self, entity_id, old_state, new_state):
+        """Handle humidity sensor changes."""
+        if new_state is None:
+            return
+
+        self._async_update_humidity(new_state)
+        await self.async_update_ha_state()
+
+    async def _async_power_sensor_changed(self, entity_id, old_state, new_state):
+        """Handle power sensor changes."""
+        if new_state is None:
+            return
+
+        if new_state.state == STATE_ON and self._hvac_mode == HVAC_MODE_OFF:
+            self._on_by_remote = True
+            await self.async_update_ha_state()
+
+        if new_state.state == HVAC_MODE_OFF:
+            self._on_by_remote = False
+            if self._hvac_mode != HVAC_MODE_OFF:
+                self._hvac_mode = HVAC_MODE_OFF
+            await self.async_update_ha_state()
+
+    @callback
+    def _async_update_current_temp(self, state):
+        """Update thermostat with latest state from sensor."""
+        unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+
+        try:
+            _state = state.state
+            if self.represents_float(_state):
+                self._current_temperature = self.hass.config.units.temperature(
+                    float(_state), unit)
+        except ValueError as ex:
+            _LOGGER.error('Unable to update from sensor: %s', ex)
+
+    @callback
+    def _async_update_temp(self, state):
+        """Update thermostat with latest state from temperature sensor."""
+        try:
+            if state.state != STATE_UNKNOWN:
+                self._current_temperature = float(state.state)
+        except ValueError as ex:
+            _LOGGER.error("Unable to update from temperature sensor: %s", ex)
+
+    @callback
+    def _async_update_humidity(self, state):
+        """Update thermostat with latest state from humidity sensor."""
+        try:
+            if state.state != STATE_UNKNOWN:
+                self._current_humidity = float(state.state)
+        except ValueError as ex:
+            _LOGGER.error("Unable to update from humidity sensor: %s", ex)
+
+    def represents_float(self, s):
+        try:
+            float(s)
+            return True
+        except ValueError:
+            return False
+
+    @property
+    def should_poll(self):
+        """Return the polling state."""
+        return False
+    '''
 
     @property
     def name(self):
@@ -252,6 +353,16 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         return self._unit_of_measurement
 
     @property
+    def current_humidity(self) -> Optional[int]:
+        """Return the current humidity."""
+        return None
+
+    @property
+    def target_humidity(self) -> Optional[int]:
+        """Return the humidity we try to reach."""
+        return None
+
+    @property
     def hvac_mode(self) -> str:
         """Return current operation ie. heat, cool."""
         return self._current_mode
@@ -261,10 +372,20 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         """Return the list of available operation modes."""
         return self._hvac_modes
 
+    '''
+    @property
+    def hvac_action(self) -> Optional[str]:
+        """Return the current running hvac operation if supported.
+
+        Need to be one of CURRENT_HVAC_*.
+        """
+        return self._current_mode
+
     @property
     def current_temperature(self) -> Optional[float]:
         """Return the current temperature."""
         return self._current_temperature
+    '''
 
     @property
     def target_temperature(self) -> Optional[float]:
@@ -275,6 +396,53 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
     def target_temperature_step(self) -> Optional[float]:
         """Return the supported step of target temperature."""
         return self._precision
+
+    '''
+    @property
+    def target_temperature_high(self) -> Optional[float]:
+        """Return the highbound target temperature we try to reach.
+
+        Requires SUPPORT_TARGET_TEMPERATURE_RANGE.
+        """
+        # TODO
+        pass
+
+    @property
+    def target_temperature_low(self) -> Optional[float]:
+        """Return the lowbound target temperature we try to reach.
+
+        Requires SUPPORT_TARGET_TEMPERATURE_RANGE.
+        """
+        # TODO
+        pass
+
+    @property
+    def preset_mode(self) -> Optional[str]:
+        """Return the current preset mode, e.g., home, away, temp.
+
+        Requires SUPPORT_PRESET_MODE.
+        """
+        # TODO
+        pass
+
+    @property
+    def preset_modes(self) -> Optional[List[str]]:
+        """Return a list of available preset modes.
+
+        Requires SUPPORT_PRESET_MODE.
+        """
+        # TODO
+        pass
+
+    @property
+    def is_aux_heat(self) -> Optional[bool]:
+        """Return true if aux heater.
+
+        Requires SUPPORT_AUX_HEAT.
+        """
+        # TODO
+        pass
+    '''
 
     @property
     def fan_mode(self) -> Optional[str]:
@@ -308,6 +476,11 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         """
         return self._swing_modes
 
+    def set_temperature(self, **kwargs) -> None:
+        """Set new target temperature."""
+        # TODO
+        pass
+
     async def async_set_temperature(self, **kwargs) -> None:
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
@@ -326,6 +499,23 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             await self.send_ir()
 
         await self.async_update_ha_state()
+        # await self.hass.async_add_executor_job(
+        #     ft.partial(self.set_temperature, **kwargs))
+
+    '''
+    def set_humidity(self, humidity: int) -> None:
+        """Set new target humidity."""
+        # TODO
+        pass
+
+    async def async_set_humidity(self, humidity: int) -> None:
+        """Set new target humidity."""
+        await self.hass.async_add_executor_job(self.set_humidity, humidity)
+    '''
+
+    def set_fan_mode(self, fan_mode: str) -> None:
+        """Set new target fan mode."""
+        pass
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
@@ -334,6 +524,13 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         if not (self._current_mode == HVAC_MODE_OFF):
             await self.send_ir()
         await self.async_update_ha_state()
+        # await self.hass.async_add_executor_job(self.set_fan_mode, fan_mode)
+
+    '''
+    def set_hvac_mode(self, hvac_mode: str) -> None:
+        """Set new target hvac mode."""
+        pass
+    '''
 
     async def async_set_hvac_mode(self, hvac_mode: str) -> None:
         """Set new target hvac mode."""
@@ -349,6 +546,13 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
 
         await self.send_ir()
         await self.async_update_ha_state()
+        # await self.hass.async_add_executor_job(self.set_hvac_mode, hvac_mode)
+
+    '''
+    def set_swing_mode(self, swing_mode: str) -> None:
+        """Set new target swing mode."""
+        pass
+    '''
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new target swing operation."""
@@ -358,6 +562,37 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             await self.send_ir()
 
         await self.async_update_ha_state()
+        # await self.hass.async_add_executor_job(self.set_swing_mode, swing_mode)
+
+    '''
+    def set_preset_mode(self, preset_mode: str) -> None:
+        """Set new preset mode."""
+        # TODO
+        pass
+
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Set new preset mode."""
+        await self.hass.async_add_executor_job(
+            self.set_preset_mode, preset_mode)
+
+    def turn_aux_heat_on(self) -> None:
+        """Turn auxiliary heater on."""
+        # TODO
+        pass
+
+    async def async_turn_aux_heat_on(self) -> None:
+        """Turn auxiliary heater on."""
+        await self.hass.async_add_executor_job(self.turn_aux_heat_on)
+
+    def turn_aux_heat_off(self) -> None:
+        """Turn auxiliary heater off."""
+        # TODO
+        pass
+
+    async def async_turn_aux_heat_off(self) -> None:
+        """Turn auxiliary heater off."""
+        await self.hass.async_add_executor_job(self.turn_aux_heat_off)
+    '''
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
@@ -365,6 +600,20 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             await self.async_set_hvac_mode(self._last_on_mode)
         else:
             await self.async_set_hvac_mode(self._hvac_modes[1])
+
+    '''
+    async def async_turn_off(self) -> None:
+        """Turn the entity off."""
+        if hasattr(self, 'turn_off'):
+            # pylint: disable=no-member
+            await self.hass.async_add_executor_job(self.turn_off)
+            return
+
+        # Fake turn off
+        if HVAC_MODE_OFF in self._hvac_modes:
+            await self.async_set_hvac_mode(HVAC_MODE_OFF)
+        # await self.async_set_hvac_mode(HVAC_MODE_OFF)
+    '''
 
     @property
     def supported_features(self) -> int:
@@ -382,6 +631,18 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         """Return the polling state."""
         return convert_temperature(self._max_temp, TEMP_CELSIUS,
                                    self.temperature_unit)
+
+    '''
+    @property
+    def min_humidity(self) -> int:
+        """Return the minimum humidity."""
+        return DEFAULT_MIN_HUMIDITY
+
+    @property
+    def max_humidity(self) -> int:
+        """Return the maximum humidity."""
+        return DEFAULT_MAX_HUMIDITY
+    '''
 
     @property
     def device_state_attributes(self) -> dict:
@@ -410,3 +671,25 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
 
             if self._last_on_mode in self._last_temp_per_mode:
                 self._target_temperature = self._last_temp_per_mode[self._last_on_mode]
+
+        '''
+        if self._temperature_sensor:
+            async_track_state_change(self.hass, self._temperature_sensor, 
+                                     self._async_temp_sensor_changed)
+
+            temp_sensor_state = self.hass.states.get(self._temperature_sensor)
+            if temp_sensor_state and temp_sensor_state.state != STATE_UNKNOWN:
+                self._async_update_temp(temp_sensor_state)
+
+        if self._humidity_sensor:
+            async_track_state_change(self.hass, self._humidity_sensor, 
+                                     self._async_humidity_sensor_changed)
+
+            humidity_sensor_state = self.hass.states.get(self._humidity_sensor)
+            if humidity_sensor_state and humidity_sensor_state.state != STATE_UNKNOWN:
+                self._async_update_humidity(humidity_sensor_state)
+
+        if self._power_sensor:
+            async_track_state_change(self.hass, self._power_sensor, 
+                                     self._async_power_sensor_changed)
+        '''
