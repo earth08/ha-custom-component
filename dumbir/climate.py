@@ -98,7 +98,6 @@ async def async_setup_platform(hass, config, async_add_entities,
 
 
 class DumbIRClimate(ClimateDevice, RestoreEntity):
-    # Implement one of these methods.
     def __init__(self, hass, config, ircodes_ini):
 
         """Initialize the Broadlink IR Climate device."""
@@ -107,6 +106,7 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         self._name = config.get(CONF_NAME)
         self._host = config.get(CONF_HOST)
 
+        _LOGGER.error("ctor")
         self._min_temp = config.get(CONF_MIN_TEMP)
         self._max_temp = config.get(CONF_MAX_TEMP)
         self._unit_of_measurement = hass.config.units.temperature_unit
@@ -116,6 +116,7 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         self._commands_ini = ircodes_ini
         self._current_mode = HVAC_MODE_OFF
         self._last_on_mode = None
+        self._last_temp_per_mode = {}
 
         self._fan_modes = config.get(CONF_CUSTOMIZE).get(
             CONF_FAN_MODES, DEFAULT_FAN_MODE_LIST)
@@ -322,8 +323,11 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             return
 
         self._target_temperature = round(temperature) if self._precision == PRECISION_WHOLE else round(temperature, 1)
+        _LOGGER.error('mode=(%s), temp=(%s)', self._current_mode, self._target_temperature)
 
         if not (self._current_mode == HVAC_MODE_OFF):
+            self._last_temp_per_mode[self._current_mode] = self._target_temperature
+            _LOGGER.error('last temp per mode=(%s)', self._last_temp_per_mode)
             await self.send_ir()
 
         await self.async_update_ha_state()
@@ -339,8 +343,11 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
     async def async_set_hvac_mode(self, hvac_mode: str) -> None:
         """Set new target hvac mode."""
         self._set_custom_mode(hvac_mode)
-        if not hvac_mode == HVAC_MODE_OFF:
+        _LOGGER.error('last temp per mode=(%s)', self._last_temp_per_mode)
+        if self._current_mode == HVAC_MODE_OFF:
             self._last_on_mode = hvac_mode
+            if hvac_mode in self._last_temp_per_mode:
+               self._target_temperature = self._last_temp_per_mode[hvac_mode]
 
         self._current_mode = hvac_mode
 
@@ -385,6 +392,7 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         """Platform specific attributes."""
         return {
             'last_on_mode' : self._last_on_mode,
+            'last_temp_per_mode' : self._last_temp_per_mode,
         }
 
     async def async_added_to_hass(self):
@@ -392,13 +400,22 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         await super().async_added_to_hass()
 
         last_state = await self.async_get_last_state()
+        _LOGGER.error(last_state)
 
         if last_state is not None:
-            _LOGGER.debug(last_state)
-            self._target_temperature = last_state.attributes['temperature']
             self._current_mode = last_state.state
             self._current_fan_mode = last_state.attributes[ATTR_FAN_MODE]
             self._current_swing_mode = last_state.attributes[ATTR_SWING_MODE]
 
             if 'last_on_mode' in last_state.attributes:
                 self._last_on_mode = last_state.attributes['last_on_mode']
+
+            if 'last_temp_per_mode' in last_state.attributes:
+            	self._last_temp_per_mode = last_state.attributes['last_temp_per_mode']
+
+            if self._last_on_mode in self._last_temp_per_mode:
+                self._target_temperature = self._last_temp_per_mode[self._last_on_mode]
+                _LOGGER.error("----target_temperature=(%s)", self._target_temperature)
+
+            _LOGGER.error("target_temperature=(%s)", self._target_temperature)
+

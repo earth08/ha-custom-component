@@ -133,6 +133,12 @@ class DumbIRMediaPlayer(MediaPlayerDevice, RestoreEntity):
         '''
 
     async def _send_command(self, payload):
+        if type(payload) is not str:
+            # get an element from the array
+            for ite in pyaload:
+                # send a command
+                _send_command(ite)
+
         service_data_json = {'host':  self._host, 'packet': payload}
         _LOGGER.debug("json: %s", service_data_json)
 
