@@ -231,8 +231,6 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             value = 'off_command' if section == HVAC_MODE_OFF else self._get_command_value(section)
             payload = self._commands_ini.get(section, value)
 
-            _LOGGER.debug("Sending command [%s %s] to %s", section, value,
-                          self._name)
             service_data_json = {'host':  self._host, 'packet': payload}
             # _LOGGER.debug("json: %s", service_data_json)
 
@@ -322,7 +320,6 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             return
 
         self._target_temperature = round(temperature) if self._precision == PRECISION_WHOLE else round(temperature, 1)
-        _LOGGER.error('mode=(%s), temp=(%s)', self._current_mode, self._target_temperature)
 
         if not (self._current_mode == HVAC_MODE_OFF):
             self._last_temp_per_mode[self._current_mode] = self._target_temperature
@@ -341,10 +338,12 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
     async def async_set_hvac_mode(self, hvac_mode: str) -> None:
         """Set new target hvac mode."""
         self._set_custom_mode(hvac_mode)
-        if self._current_mode == HVAC_MODE_OFF:
+        if hvac_mode == HVAC_MODE_OFF:
+            if self._current_mode != HVAC_MODE_OFF:
+                self._last_on_mode = self._current_mode
+        elif hvac_mode != self._current_mode:
             self._last_on_mode = hvac_mode
-            if hvac_mode in self._last_temp_per_mode:
-               self._target_temperature = self._last_temp_per_mode[hvac_mode]
+            self._target_temperature = self._last_temp_per_mode.get(hvac_mode, self._target_temperature)
 
         self._current_mode = hvac_mode
 
@@ -397,7 +396,6 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         await super().async_added_to_hass()
 
         last_state = await self.async_get_last_state()
-        _LOGGER.error(last_state)
 
         if last_state is not None:
             self._current_mode = last_state.state
@@ -408,7 +406,7 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
                 self._last_on_mode = last_state.attributes['last_on_mode']
 
             if 'last_temp_per_mode' in last_state.attributes:
-            	self._last_temp_per_mode = last_state.attributes['last_temp_per_mode']
+                self._last_temp_per_mode = last_state.attributes['last_temp_per_mode']
 
             if self._last_on_mode in self._last_temp_per_mode:
                 self._target_temperature = self._last_temp_per_mode[self._last_on_mode]
