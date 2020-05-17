@@ -20,6 +20,7 @@ from homeassistant.const import (
     CONF_NAME, STATE_OFF, STATE_ON, STATE_UNKNOWN,
     STATE_IDLE, STATE_PAUSED, STATE_PLAYING)
 from homeassistant.core import callback
+from homeassistant.helpers.event import async_track_state_change
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreEntity
 
@@ -29,11 +30,13 @@ DEFAULT_NAME = "DumbIR Media Player"
 
 CONF_HOST = 'host'
 CONF_IRCODES = 'ir_codes'
+CONF_POWER_SENSOR = 'power_sensor'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
     vol.Required(CONF_IRCODES): cv.string,
+    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
 })
 
 async def async_setup_platform(hass, config, async_add_entities,
@@ -64,6 +67,7 @@ class DumbIRMediaPlayer(MediaPlayerDevice, RestoreEntity):
 
         self._name = config.get(CONF_NAME)
         self._host = config.get(CONF_HOST)
+        self._power_sensor = config.get(CONF_POWER_SENSOR)
         self._ir_codes = ir_codes
 
         self._state = STATE_IDLE
@@ -280,9 +284,26 @@ class DumbIRMediaPlayer(MediaPlayerDevice, RestoreEntity):
         await self._send_command(self._ir_codes['sources'][source])
         await self.async_update_ha_state()
 
+    async def async_power_sensor_changed(self, entity_id, old_state, new_state):
+        """update power state"""
+        if new_state is None:
+            return
+
+        if new_state.state == STATE_ON and self._state == STATE_OFF:
+            self._state = STATE_ON
+            await self.async_update_ha_state()
+
+        if new_state.state == STATE_OFF:
+            self._state = STATE_OFF
+            await self.async_update_ha_state()
+
     async def async_added_to_hass(self):
         """Run when entity about to be added."""
         await super().async_added_to_hass()
+
+        if self._power_sensor:
+            async_track_state_change(self.hass, self._power_sensor,
+                                     self.async_power_sensor_changed)
 
         last_state = await self.async_get_last_state()
         _LOGGER.debug(last_state)
