@@ -98,7 +98,7 @@ class DumbIRMediaPlayer(MediaPlayerDevice, RestoreEntity):
             volume = self._ir_codes['volume']
             if ('down' in volume and volume['down'] is not None) \
                 or ('up' in volume and volume['up'] is not None):
-                self._support_flags = self._support_flags | SUPPORT_VOLUME_STEP | SUPPORT_VOLUME_SET
+                self._support_flags = self._support_flags | SUPPORT_VOLUME_STEP
 
             if 'mute' in volume and volume['mute'] is not None:
                 self._support_flags = self._support_flags | SUPPORT_VOLUME_MUTE
@@ -141,7 +141,7 @@ class DumbIRMediaPlayer(MediaPlayerDevice, RestoreEntity):
             # get an element from the array
             for ite in pyaload:
                 # send a command
-                _send_command(ite)
+                self._send_command(ite)
 
         service_data_json = {'host':  self._host, 'packet': payload}
         _LOGGER.debug("json: %s", service_data_json)
