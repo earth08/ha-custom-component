@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 
-from homeassistant.components.climate import ClimateDevice, PLATFORM_SCHEMA
+from homeassistant.components.climate import ClimateEntity, PLATFORM_SCHEMA
 from homeassistant.components.climate.const import (
     HVAC_MODE_AUTO, HVAC_MODE_COOL, HVAC_MODE_DRY,
     HVAC_MODE_HEAT, HVAC_MODE_OFF,
@@ -41,12 +41,14 @@ CONF_MIN_TEMP = 'min_temp'
 CONF_MAX_TEMP = 'max_temp'
 CONF_TARGET_TEMP = 'target_temp'
 CONF_PRECISION = 'precision'
-CONF_TEMP_SENSOR = 'temp_sensor'
 CONF_OPERATIONS = 'operations'
 CONF_FAN_MODES = 'fan_modes'
 CONF_SWING_MODES = 'swing_modes'
 CONF_CURRENT_FAN_MODE = 'current_fan_mode'
 CONF_CURRENT_SWING_MODE = 'current_swing_mode'
+CONF_TEMPERATURE_SENSOR = 'temperature_sensor'
+CONF_HUMIDITY_SENSOR = 'humidity_sensor'
+CONF_POWER_SENSOR = 'power_sensor'
 
 DEFAULT_NAME = 'DumbIR Climate'
 DEFAULT_RETRY = 3
@@ -72,7 +74,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_TEMP, default=DEFAULT_MAX_TEMP): vol.Coerce(float),
     vol.Optional(CONF_PRECISION, default=DEFAULT_PRECISION): vol.In(
         [PRECISION_TENTHS, PRECISION_HALVES, PRECISION_WHOLE]),
-    vol.Optional(CONF_TEMP_SENSOR): cv.entity_id,
     vol.Optional(CONF_CUSTOMIZE, default={}): CUSTOMIZE_SCHEMA,
     vol.Optional(CONF_TEMPERATURE_SENSOR): cv.entity_id,
     vol.Optional(CONF_HUMIDITY_SENSOR): cv.entity_id,
@@ -100,7 +101,7 @@ async def async_setup_platform(hass, config, async_add_entities,
     async_add_entities([DumbIRClimate(hass, config, ircodes_ini)])
 
 
-class DumbIRClimate(ClimateDevice, RestoreEntity):
+class DumbIRClimate(ClimateEntity, RestoreEntity):
     def __init__(self, hass, config, ircodes_ini):
 
         """Initialize the Broadlink IR Climate device."""
@@ -156,28 +157,16 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         self._common_swing_conf = (self._swing_modes, self._current_swing_mode)
 
         self._temp_lock = asyncio.Lock()
+
         # to suppress false error from Alexa component
         self._current_temperature = 21.0
-        '''
-        self._temp_sensor_entity_id = config.get(CONF_TEMP_SENSOR)
         
         self._temperature_sensor = config.get(CONF_TEMPERATURE_SENSOR)
         self._humidity_sensor = config.get(CONF_HUMIDITY_SENSOR)
         self._power_sensor = config.get(CONF_POWER_SENSOR)
 
-        self._current_temperature = None
         self._current_humidity = None
 
-        if self._temp_sensor_entity_id:
-            async_track_state_change(
-                hass, temp_sensor_entity_id,
-                self._async_temp_sensor_changed)
-
-            sensor_state = hass.states.get(temp_sensor_entity_id)
-
-            if sensor_state:
-                self._async_update_current_temp(sensor_state)
-        '''
 
     def _get_command_value(self, section):
         swing_mode = ''
@@ -260,7 +249,6 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             await self.hass.services.async_call('broadlink', 'send',
                                                 service_data_json )
 
-    '''
     async def _async_temp_sensor_changed(self, entity_id, old_state, new_state):
         """Handle temperature changes."""
         if new_state is None:
@@ -268,13 +256,11 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
 
         self._async_update_current_temp(new_state)
         await self.async_update_ha_state()
-    '''
 
     @property
     def precision(self) -> float:
         return self._precision
 
-    '''
     async def _async_humidity_sensor_changed(self, entity_id, old_state, new_state):
         """Handle humidity sensor changes."""
         if new_state is None:
@@ -340,7 +326,6 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
     def should_poll(self):
         """Return the polling state."""
         return False
-    '''
 
     @property
     def name(self):
@@ -380,12 +365,12 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         Need to be one of CURRENT_HVAC_*.
         """
         return self._current_mode
+    '''
 
     @property
     def current_temperature(self) -> Optional[float]:
         """Return the current temperature."""
         return self._current_temperature
-    '''
 
     @property
     def target_temperature(self) -> Optional[float]:
@@ -650,6 +635,7 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         return {
             'last_on_mode' : self._last_on_mode,
             'last_temp_per_mode' : self._last_temp_per_mode,
+            'last_swing_mode' : self._current_swing_mode
         }
 
     async def async_added_to_hass(self):
@@ -672,7 +658,6 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
             if self._last_on_mode in self._last_temp_per_mode:
                 self._target_temperature = self._last_temp_per_mode[self._last_on_mode]
 
-        '''
         if self._temperature_sensor:
             async_track_state_change(self.hass, self._temperature_sensor, 
                                      self._async_temp_sensor_changed)
@@ -692,4 +677,3 @@ class DumbIRClimate(ClimateDevice, RestoreEntity):
         if self._power_sensor:
             async_track_state_change(self.hass, self._power_sensor, 
                                      self._async_power_sensor_changed)
-        '''

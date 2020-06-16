@@ -26,8 +26,9 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_NAME = "DumbIR Media Player"
+DEFAULT_NAME = "DumbIR Light"
 
+CONF_CHANNEL = 'channel'
 CONF_IRCODES = 'ir_codes'
 CONF_POWER = 'power'
 CONF_TOGGLE = 'toggle'
@@ -35,7 +36,8 @@ CONF_TOGGLE = 'toggle'
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
-    vol.Required(CONF_IRCODES): cv.string
+    vol.Required(CONF_IRCODES): cv.string,
+    vol.Optional(CONF_CHANNEL, default=0): cv.positive_int
 })
 
 
@@ -71,6 +73,13 @@ class DumbIRLight(LightEntity, RestoreEntity):
         self._is_on = False
         self._support_flags = 0
 
+        channel = config.get(CONF_CHANNEL)
+        if isinstance(self._ir_codes, list):
+            if channel < len(ir_codes):
+                self._ir_codes = ir_codes[channel]
+            else:
+                self._ir_codes = ir_codes[0]
+            
         #Supported features
         if CONF_POWER in self._ir_codes:
             power = self._ir_codes[CONF_POWER]

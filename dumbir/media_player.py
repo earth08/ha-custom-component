@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os.path
-from time import sleep
 import yaml
 
 import voluptuous as vol
