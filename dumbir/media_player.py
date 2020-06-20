@@ -256,7 +256,7 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
 
     async def async_turn_on(self):
         """Turn the media player off."""
-        await self._send_command(self._ir_codes[CONF_POWER][COMMAND_ON])
+        await self._send_command(self._ir_codes[CONF_POWER][CONF_COMMAND_ON])
 
         self._state = STATE_ON
         await self.async_update_ha_state()
