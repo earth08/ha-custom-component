@@ -3,7 +3,9 @@ import logging
 import os.path
 import yaml
 
+
 _LOGGER = logging.getLogger(__name__)
+
 
 def load_ircodes(hass, ircodes_path):
     """load ircodes"""
@@ -20,7 +22,7 @@ def load_ircodes(hass, ircodes_path):
         ir_codes = yaml.load(f, Loader=yaml.SafeLoader)
 
     if not ir_codes:
-        _LOGGER.error("The ir code file was not found. (%s)", ir_codes_path)
+        _LOGGER.error("The ir code file is empty. (%s)", ir_codes_path)
 
     return ir_codes
 
@@ -31,7 +33,7 @@ async def send_command(hass, host, payload):
         # get an element from the array
         for ite in payload:
             # send a command
-            self._send_command(host, ite)
+            send_command(hass, host, ite)
 
     service_data_json = {'host':  host, 'packet': payload}
     _LOGGER.debug("json: %s", service_data_json)

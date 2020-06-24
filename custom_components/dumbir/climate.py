@@ -94,14 +94,15 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
     vol.Required(CONF_IRCODES): cv.string,
+    vol.Optional(CONF_TEMPERATURE_SENSOR): cv.entity_id,
+    vol.Optional(CONF_HUMIDITY_SENSOR): cv.entity_id,
+    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
+    # To override 
     #vol.Optional(CONF_MIN_TEMP, default=DEFAULT_MIN_TEMP): vol.Coerce(float),
     #vol.Optional(CONF_MAX_TEMP, default=DEFAULT_MAX_TEMP): vol.Coerce(float),
     #vol.Optional(CONF_PRECISION, default=DEFAULT_PRECISION): vol.In(
     #    [PRECISION_TENTHS, PRECISION_HALVES, PRECISION_WHOLE]),
     #vol.Optional(CONF_CUSTOMIZE, default={}): CUSTOMIZE_SCHEMA,
-    vol.Optional(CONF_TEMPERATURE_SENSOR): cv.entity_id,
-    vol.Optional(CONF_HUMIDITY_SENSOR): cv.entity_id,
-    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
 })
 
 
@@ -267,7 +268,7 @@ class DumbIRClimate(ClimateEntity, RestoreEntity):
                                         self._current_state[ATTR_TEMPERATURE],
                                         self._current_state[ATTR_SWING_MODE])
 
-            await send_command(self.hass, self._host, pyaload)
+            await send_command(self.hass, self._host, payload)
 
     async def _async_temp_sensor_changed(self, entity_id, old_state, new_state):
         """Handle temperature changes."""
