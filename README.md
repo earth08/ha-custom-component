@@ -12,3 +12,4 @@ dumbIR is using Broadlink Universal Remote, and supports climate, media\_player 
 
 For details, refer to [wiki](https://github.com/Thunderbird2086/ha-custom-component-dumbir/wiki).
 
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/Thunderbird2086/ha-custom-component-dumbir)
