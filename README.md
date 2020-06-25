@@ -1,5 +1,5 @@
 # dumbir: HomeAssistant Custom Component 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/Thunderbird2086/ha-custom-component-dumbir)<br>
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Thunderbird2086/ha-custom-component-dumbir)](https://github.com/Thunderbird2086/ha-custom-component-dumbir/releases/latest)<br>
 
 * Supported Home Assistant version : 0.92 or above as of April 24th 2019
 

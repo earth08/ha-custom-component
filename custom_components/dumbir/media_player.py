@@ -1,7 +1,5 @@
 """Provides functionality to interact with media players."""
-import asyncio
 import logging
-import os.path
 
 import voluptuous as vol
 
@@ -19,7 +17,7 @@ from homeassistant.components.media_player.const import (
     SUPPORT_PAUSE,
     SUPPORT_STOP,
     SUPPORT_VOLUME_STEP,
-    SUPPORT_VOLUME_SET, SUPPORT_VOLUME_MUTE,
+    SUPPORT_VOLUME_MUTE,
     # SUPPORT_SELECT_CHANNEL,
     SUPPORT_SELECT_SOURCE,
     MEDIA_TYPE_CHANNEL
@@ -32,13 +30,11 @@ from homeassistant.const import (
     CONF_HOST,
     STATE_OFF,
     STATE_ON,
-    STATE_UNKNOWN,
     STATE_IDLE,
     STATE_PAUSED,
     STATE_PLAYING
 )
 
-from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_state_change
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -49,7 +45,7 @@ from . import (
 )
 
 from .const import (
-    CONF_COMMANDS,
+    # CONF_COMMANDS,
     CONF_IRCODES,
     CONF_POWER,
     CONF_POWER_SENSOR,
@@ -80,6 +76,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_POWER_SENSOR): cv.entity_id
 })
 
+
 async def async_setup_platform(hass, config, async_add_entities,
                                discovery_info=None):
     """Set up the Dumb IR Media Player platform."""
@@ -88,7 +85,7 @@ async def async_setup_platform(hass, config, async_add_entities,
     if not ir_codes:
         return
 
-    async_add_entities([DumbIRMediaPlayer( hass, config, ir_codes)])
+    async_add_entities([DumbIRMediaPlayer(hass, config, ir_codes)])
 
 
 class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
@@ -110,27 +107,31 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         self._is_volume_muted = False
         self._is_power_toggle = False
 
-        #Supported features
+        # Supported features
         if CONF_POWER in self._ir_codes:
             power = self._ir_codes[CONF_POWER]
             if CONF_TOGGLE in power and power[CONF_TOGGLE] is not None:
                 self._is_power_toggle = True
-                self._support_flags = self._support_flags | SUPPORT_TURN_OFF 
+                self._support_flags = self._support_flags | SUPPORT_TURN_OFF
                 self._support_flags = self._support_flags | SUPPORT_TURN_ON
-                power = {CONF_COMMAND_ON : power[CONF_TOGGLE],
-                         CONF_COMMAND_OFF : power[CONF_TOGGLE]}
+                power = {CONF_COMMAND_ON: power[CONF_TOGGLE],
+                         CONF_COMMAND_OFF: power[CONF_TOGGLE]}
                 self._ir_codes.update({CONF_POWER: power})
             else:
-                if CONF_COMMAND_OFF in power and power[CONF_COMMAND_OFF] is not None:
-                    self._support_flags = self._support_flags | SUPPORT_TURN_OFF
+                if CONF_COMMAND_OFF in power and \
+                   power[CONF_COMMAND_OFF] is not None:
+                    self._support_flags = self._support_flags | \
+                                          SUPPORT_TURN_OFF
 
-                if CONF_COMMAND_ON in power and power[CONF_COMMAND_ON] is not None:
-                    self._support_flags = self._support_flags | SUPPORT_TURN_ON
+                if CONF_COMMAND_ON in power and \
+                   power[CONF_COMMAND_ON] is not None:
+                    self._support_flags = self._support_flags | \
+                                          SUPPORT_TURN_ON
 
         if CONF_VOLUME in self._ir_codes:
             volume = self._ir_codes[CONF_VOLUME]
             if (CONF_DOWN in volume and volume[CONF_DOWN] is not None) \
-                or (CONF_UP in volume and volume[CONF_UP] is not None):
+               or (CONF_UP in volume and volume[CONF_UP] is not None):
                 self._support_flags = self._support_flags | SUPPORT_VOLUME_STEP
 
             if CONF_MUTE in volume and volume[CONF_MUTE] is not None:
@@ -139,7 +140,8 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         if CONF_MEDIA in self._ir_codes:
             media = self._ir_codes[CONF_MEDIA]
             if CONF_PREVIOUS in media and media[CONF_PREVIOUS] is not None:
-                self._support_flags = self._support_flags | SUPPORT_PREVIOUS_TRACK
+                self._support_flags = self._support_flags | \
+                    SUPPORT_PREVIOUS_TRACK
 
             if CONF_NEXT in media and media[CONF_NEXT] is not None:
                 self._support_flags = self._support_flags | SUPPORT_NEXT_TRACK
@@ -153,14 +155,16 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
             if CONF_STOP in media and media[CONF_STOP] is not None:
                 self._support_flags = self._support_flags | SUPPORT_STOP
 
-        if CONF_SOURCES in self._ir_codes and self._ir_codes[CONF_SOURCES] is not None:
+        if CONF_SOURCES in self._ir_codes and \
+           self._ir_codes[CONF_SOURCES] is not None:
             self._support_flags = self._support_flags | SUPPORT_SELECT_SOURCE
 
             # Source list
             for key in self._ir_codes[CONF_SOURCES]:
                 self._source_list.append(key)
         '''
-        if CONF_CHANNELS in self._ir_codes and self._ir_codes[CONF_CHANNELS] is not None:
+        if CONF_CHANNELS in self._ir_codes and \
+           self._ir_codes[CONF_CHANNELS] is not None:
             self._support_flags = self._support_flags | SUPPORT_SELECT_CHANNEL
 
             # Channel list
@@ -190,7 +194,6 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         """Return the state of the player."""
         return self._state
 
-
     @property
     def volume_level(self):
         """Volume level of the media player (0..1)."""
@@ -216,7 +219,7 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
     @property
     def channel_list(self):
         return self._channel_list
-        
+
     @property
     def channel(self):
         return self._channel
@@ -224,7 +227,7 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
     @property
     def source_list(self):
         return self._source_list
-        
+
     @property
     def source(self):
         return self._source
@@ -238,7 +241,7 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         """Turn the media player off."""
         await send_command(self.hass, self._host,
                            self._ir_codes[CONF_POWER][CONF_COMMAND_OFF])
-        
+
         self._state = STATE_OFF
         await self.async_update_ha_state()
 
@@ -300,7 +303,7 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         await send_command(self.hass, self._host,
                            self._ir_codes[CONF_VOLUME][CONF_UP])
         await self.async_update_ha_state()
-    
+
     async def async_mute_volume(self, mute):
         """Mute the volume."""
         self._is_volume_muted = not self._is_volume_muted
@@ -316,7 +319,8 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
                            self._ir_codes[CONF_SOURCES][source])
         await self.async_update_ha_state()
 
-    async def async_power_sensor_changed(self, entity_id, old_state, new_state):
+    async def async_power_sensor_changed(self, entity_id,
+                                         old_state, new_state):
         """update power state"""
         if new_state is None:
             return
