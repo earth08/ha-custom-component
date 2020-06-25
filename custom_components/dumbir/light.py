@@ -2,7 +2,6 @@
 import asyncio
 import logging
 import os.path
-import yaml
 
 import voluptuous as vol
 
@@ -24,14 +23,24 @@ from homeassistant.const import (
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreEntity
 
+from . import (
+    load_ircodes,
+    send_command
+)
+
+from .const import (
+    CONF_COMMANDS,
+    CONF_IRCODES,
+    CONF_POWER,
+    CONF_POWER_SENSOR,
+    CONF_TOGGLE
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_NAME = "DumbIR Light"
 
 CONF_CHANNEL = 'channel'
-CONF_IRCODES = 'ir_codes'
-CONF_POWER = 'power'
-CONF_TOGGLE = 'toggle'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
@@ -44,19 +53,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 async def async_setup_platform(hass, config, async_add_entities,
                                discovery_info=None):
     """Set up the Dumb IR Media Player platform."""
-    ir_codes_file = config.get(CONF_IRCODES)
+    ir_codes = load_ircodes(hass, config.get(CONF_IRCODES))
 
-    if ir_codes_file.startswith("/"):
-        ir_codes_file = ir_codes_file[1:]
-
-    ir_codes_path = hass.config.path(ir_codes_file)
-
-    if not os.path.exists(ir_codes_path):
-        _LOGGER.error("The ir code file was not found. (%s)", ir_codes_path)
+    if not ir_codes:
         return
-
-    with open(ir_codes_path, 'r') as f:
-        ir_codes = yaml.load(f, Loader=yaml.SafeLoader)
 
     async_add_entities([DumbIRLight( hass, config, ir_codes)])
 
@@ -95,18 +95,6 @@ class DumbIRLight(LightEntity, RestoreEntity):
             self._effect_list = list(self._ir_codes[ATTR_EFFECT].keys())
             self._effect = self._effect_list[0]
 
-    async def _send_command(self, payload):
-        if type(payload) is not str:
-            # get an element from the array
-            for ite in pyaload:
-                # send a command
-                self._send_command(ite)
-
-        service_data_json = {'host':  self._host, 'packet': payload}
-
-        await self.hass.services.async_call('broadlink', 'send',
-                                            service_data_json )
-
     @property
     def name(self) -> str:
         """Return the name of the media player."""
@@ -140,15 +128,18 @@ class DumbIRLight(LightEntity, RestoreEntity):
             self._effect = kwargs[ATTR_EFFECT]
 
         if CONF_COMMAND_ON in self._ir_codes[CONF_POWER]:
-            await self._send_command(self._ir_codes[CONF_POWER][CONF_COMMAND_ON])
+            await send_command(self.hass, self._host,
+                               self._ir_codes[CONF_POWER][CONF_COMMAND_ON])
 
         if self._effect is not None:
-            await self._send_command(self._ir_codes[ATTR_EFFECT][self._effect])
+            await send_command(self.hass, self._host,
+                               self._ir_codes[ATTR_EFFECT][self._effect])
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off"""
         self._is_on = False
-        await self._send_command(self._ir_codes[CONF_POWER][CONF_COMMAND_OFF])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_POWER][CONF_COMMAND_OFF])
 
     async def async_added_to_hass(self):
         """Run when entity about to be added."""

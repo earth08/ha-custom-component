@@ -1,9 +1,9 @@
+"""Provides functionality to interact with climate devices."""
 import asyncio
 from configparser import ConfigParser
 import logging
 import os.path
 from typing import Any, Dict, List, Optional
-import yaml
 
 import voluptuous as vol
 
@@ -47,6 +47,19 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util.temperature import convert as convert_temperature
 
+from . import (
+    load_ircodes,
+    send_command
+)
+
+from .const import (
+    CONF_COMMANDS,
+    CONF_IRCODES,
+    CONF_POWER,
+    CONF_POWER_SENSOR,
+    CONF_TOGGLE
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SUPPORT_FLAGS = (
@@ -56,16 +69,12 @@ DEFAULT_SUPPORT_FLAGS = (
 
 ATTR_LAST_ON_STATE = 'last_on_state'
 
-CONF_COMMANDS = 'commands'
 CONF_COMMAND_IDLE = 'command_idle'
 CONF_FAN_MODES = 'fan_modes'
 CONF_HUMIDITY_SENSOR = 'humidity_sensor'
-CONF_IRCODES = 'ir_codes'
 CONF_MAX_TEMP = 'max_temp'
 CONF_MIN_TEMP = 'min_temp'
 CONF_OPERATIONS = 'operations'
-CONF_POWER = 'power'
-CONF_POWER_SENSOR = 'power_sensor'
 CONF_PRECISION = 'precision'
 CONF_SWING_MODES = 'swing_modes'
 CONF_TEMPERATURE = 'temperature'
@@ -85,33 +94,25 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
     vol.Required(CONF_HOST): cv.string,
     vol.Required(CONF_IRCODES): cv.string,
+    vol.Optional(CONF_TEMPERATURE_SENSOR): cv.entity_id,
+    vol.Optional(CONF_HUMIDITY_SENSOR): cv.entity_id,
+    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
+    # To override 
     #vol.Optional(CONF_MIN_TEMP, default=DEFAULT_MIN_TEMP): vol.Coerce(float),
     #vol.Optional(CONF_MAX_TEMP, default=DEFAULT_MAX_TEMP): vol.Coerce(float),
     #vol.Optional(CONF_PRECISION, default=DEFAULT_PRECISION): vol.In(
     #    [PRECISION_TENTHS, PRECISION_HALVES, PRECISION_WHOLE]),
     #vol.Optional(CONF_CUSTOMIZE, default={}): CUSTOMIZE_SCHEMA,
-    vol.Optional(CONF_TEMPERATURE_SENSOR): cv.entity_id,
-    vol.Optional(CONF_HUMIDITY_SENSOR): cv.entity_id,
-    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
 })
 
 
 async def async_setup_platform(hass, config, async_add_entities,
                                discovery_info=None):
     """Set up the Dumb IR Climate platform."""
-    conf_file = config.get(CONF_IRCODES)
+    climate_conf = load_ircodes(hass, config.get(CONF_IRCODES))
 
-    if conf_file.startswith("/"):
-        conf_file = conf_file[1:]
-
-    conf_file_path = hass.config.path(conf_file)
-
-    if not os.path.exists(conf_file_path):
-        _LOGGER.error("The ir code file was not found. (%s)", conf_file_path)
+    if not climate_conf:
         return
-
-    with open(conf_file_path, 'r') as f:
-        climate_conf = yaml.load(f, Loader=yaml.SafeLoader)
 
     async_add_entities([DumbIRClimate(hass, config, climate_conf)])
 
@@ -267,9 +268,7 @@ class DumbIRClimate(ClimateEntity, RestoreEntity):
                                         self._current_state[ATTR_TEMPERATURE],
                                         self._current_state[ATTR_SWING_MODE])
 
-            service_data_json = {'host':  self._host, 'packet': payload}
-            await self.hass.services.async_call('broadlink', 'send',
-                                                service_data_json )
+            await send_command(self.hass, self._host, payload)
 
     async def _async_temp_sensor_changed(self, entity_id, old_state, new_state):
         """Handle temperature changes."""

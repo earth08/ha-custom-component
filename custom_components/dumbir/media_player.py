@@ -1,7 +1,7 @@
+"""Provides functionality to interact with media players."""
 import asyncio
 import logging
 import os.path
-import yaml
 
 import voluptuous as vol
 
@@ -43,24 +43,33 @@ from homeassistant.helpers.event import async_track_state_change
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreEntity
 
+from . import (
+    load_ircodes,
+    send_command
+)
+
+from .const import (
+    CONF_COMMANDS,
+    CONF_IRCODES,
+    CONF_POWER,
+    CONF_POWER_SENSOR,
+    CONF_TOGGLE
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_NAME = "DumbIR Media Player"
 
 CONF_CHANNELS = 'channels'
 CONF_DOWN = 'down'
-CONF_IRCODES = 'ir_codes'
 CONF_MEDIA = 'media'
 CONF_MUTE = 'mute'
 CONF_NEXT = 'next'
 CONF_PAUSE = 'pause'
 CONF_PLAY = 'play'
-CONF_POWER = 'power'
-CONF_POWER_SENSOR = 'power_sensor'
 CONF_PREVIOUS = 'previous'
 CONF_SOURCES = 'sources'
 CONF_STOP = 'stop'
-CONF_TOGGLE = 'toggle'
 CONF_UP = 'up'
 CONF_VOLUME = 'volume'
 
@@ -74,19 +83,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 async def async_setup_platform(hass, config, async_add_entities,
                                discovery_info=None):
     """Set up the Dumb IR Media Player platform."""
-    ir_codes_file = config.get(CONF_IRCODES)
+    ir_codes = load_ircodes(hass, config.get(CONF_IRCODES))
 
-    if ir_codes_file.startswith("/"):
-        ir_codes_file = ir_codes_file[1:]
-
-    ir_codes_path = hass.config.path(ir_codes_file)
-
-    if not os.path.exists(ir_codes_path):
-        _LOGGER.error("The ir code file was not found. (%s)", ir_codes_path)
+    if not ir_codes:
         return
-
-    with open(ir_codes_path, 'r') as f:
-        ir_codes = yaml.load(f, Loader=yaml.SafeLoader)
 
     async_add_entities([DumbIRMediaPlayer( hass, config, ir_codes)])
 
@@ -168,19 +168,6 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
                 self._channel_list.append(key)
         '''
 
-    async def _send_command(self, payload):
-        if type(payload) is not str:
-            # get an element from the array
-            for ite in payload:
-                # send a command
-                self._send_command(ite)
-
-        service_data_json = {'host':  self._host, 'packet': payload}
-        _LOGGER.debug("json: %s", service_data_json)
-
-        await self.hass.services.async_call('broadlink', 'send',
-                                            service_data_json )
-            
     '''
     @property
     def should_poll(self):
@@ -249,14 +236,16 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
 
     async def async_turn_off(self):
         """Turn the media player off."""
-        await self._send_command(self._ir_codes[CONF_POWER][CONF_COMMAND_OFF])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_POWER][CONF_COMMAND_OFF])
         
         self._state = STATE_OFF
         await self.async_update_ha_state()
 
     async def async_turn_on(self):
         """Turn the media player off."""
-        await self._send_command(self._ir_codes[CONF_POWER][CONF_COMMAND_ON])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_POWER][CONF_COMMAND_ON])
 
         self._state = STATE_ON
         await self.async_update_ha_state()
@@ -265,7 +254,8 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         """Send play command.
         This method must be run in the event loop and returns a coroutine.
         """
-        await self._send_command(self._ir_codes[CONF_MEDIA][CONF_PLAY])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_MEDIA][CONF_PLAY])
         self._state = STATE_PLAYING
         await self.async_update_ha_state()
 
@@ -273,7 +263,8 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         """Send pause command.
         This method must be run in the event loop and returns a coroutine.
         """
-        await self._send_command(self._ir_codes[CONF_MEDIA][CONF_PAUSE])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_MEDIA][CONF_PAUSE])
         self._state = STATE_PAUSED
         await self.async_update_ha_state()
 
@@ -281,41 +272,48 @@ class DumbIRMediaPlayer(MediaPlayerEntity, RestoreEntity):
         """Send stop command.
         This method must be run in the event loop and returns a coroutine.
         """
-        await self._send_command(self._ir_codes[CONF_MEDIA][CONF_STOP])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_MEDIA][CONF_STOP])
         self._state = STATE_IDLE
         await self.async_update_ha_state()
 
     async def async_media_previous_track(self):
         """Send previous track command."""
-        await self._send_command(self._ir_codes[CONF_MEDIA][CONF_PREVIOUS])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_MEDIA][CONF_PREVIOUS])
         await self.async_update_ha_state()
 
     async def async_media_next_track(self):
         """Send next track command."""
-        await self._send_command(self._ir_codes[CONF_MEDIA][CONF_NEXT])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_MEDIA][CONF_NEXT])
         await self.async_update_ha_state()
 
     async def async_volume_down(self):
         """Turn volume down for media player."""
-        await self._send_command(self._ir_codes[CONF_VOLUME][CONF_DOWN])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_VOLUME][CONF_DOWN])
         await self.async_update_ha_state()
 
     async def async_volume_up(self):
         """Turn volume up for media player."""
-        await self._send_command(self._ir_codes[CONF_VOLUME][CONF_UP])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_VOLUME][CONF_UP])
         await self.async_update_ha_state()
     
     async def async_mute_volume(self, mute):
         """Mute the volume."""
         self._is_volume_muted = not self._is_volume_muted
 
-        await self._send_command(self._ir_codes[CONF_VOLUME][CONF_MUTE])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_VOLUME][CONF_MUTE])
         await self.async_update_ha_state()
 
     async def async_select_source(self, source):
         """Select channel from source."""
         self._source = source
-        await self._send_command(self._ir_codes[CONF_SOURCES][source])
+        await send_command(self.hass, self._host,
+                           self._ir_codes[CONF_SOURCES][source])
         await self.async_update_ha_state()
 
     async def async_power_sensor_changed(self, entity_id, old_state, new_state):
