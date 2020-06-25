@@ -1,7 +1,5 @@
 """Provides functionality to interact with lights."""
-import asyncio
 import logging
-import os.path
 
 import voluptuous as vol
 
@@ -29,10 +27,10 @@ from . import (
 )
 
 from .const import (
-    CONF_COMMANDS,
+    # CONF_COMMANDS,
     CONF_IRCODES,
     CONF_POWER,
-    CONF_POWER_SENSOR,
+    # CONF_POWER_SENSOR,
     CONF_TOGGLE
 )
 
@@ -58,7 +56,7 @@ async def async_setup_platform(hass, config, async_add_entities,
     if not ir_codes:
         return
 
-    async_add_entities([DumbIRLight( hass, config, ir_codes)])
+    async_add_entities([DumbIRLight(hass, config, ir_codes)])
 
 
 class DumbIRLight(LightEntity, RestoreEntity):
@@ -79,13 +77,13 @@ class DumbIRLight(LightEntity, RestoreEntity):
                 self._ir_codes = ir_codes[channel]
             else:
                 self._ir_codes = ir_codes[0]
-            
-        #Supported features
+
+        # Supported features
         if CONF_POWER in self._ir_codes:
             power = self._ir_codes[CONF_POWER]
             if CONF_TOGGLE in power and power[CONF_TOGGLE] is not None:
-                power = {CONF_COMMAND_ON : power[CONF_TOGGLE],
-                         CONF_COMMAND_OFF : power[CONF_TOGGLE]}
+                power = {CONF_COMMAND_ON: power[CONF_TOGGLE],
+                         CONF_COMMAND_OFF: power[CONF_TOGGLE]}
                 self._ir_codes.update({CONF_POWER: power})
 
         self._effect_list = None

@@ -10,6 +10,7 @@ logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
 _LOGGER = logging.getLogger(__name__)
 
+
 def modify_command(cmd):
     if not cmd.endswith('_command'):
         return cmd
@@ -18,6 +19,7 @@ def modify_command(cmd):
     new_cmd = new_cmd + cmd.replace('_command', '')
 
     return new_cmd
+
 
 def get_power_command(modes, ircodes_ini):
     power = {}
@@ -36,6 +38,7 @@ def get_power_command(modes, ircodes_ini):
         modes.remove('off')
 
     return power
+
 
 def get_modes(modes, ircodes_ini):
     commands = {}
@@ -58,7 +61,7 @@ def get_modes(modes, ircodes_ini):
                     commands[mode][fan][swing] = {}
                 pos = pos2 + 1
 
-            temp = cmd[pos:]                    
+            temp = cmd[pos:]
             temp = float(temp.replace('_', '.'))
 
             if swing:
@@ -67,6 +70,7 @@ def get_modes(modes, ircodes_ini):
                 commands[mode][fan][temp] = ircodes_ini[mode][cmd]
 
     return commands
+
 
 def main(ini_file):
     ircodes_ini = ConfigParser()
@@ -85,7 +89,7 @@ def main(ini_file):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(fromfile_prefix_chars='@');
+    parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('ini', help="ini file")
     args = parser.parse_args()
 

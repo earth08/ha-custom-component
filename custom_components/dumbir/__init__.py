@@ -39,4 +39,4 @@ async def send_command(hass, host, payload):
     _LOGGER.debug("json: %s", service_data_json)
 
     await hass.services.async_call('broadlink', 'send',
-                                   service_data_json )
+                                   service_data_json)
