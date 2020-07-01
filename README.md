@@ -1,6 +1,7 @@
 # ha-custome-component
 HomeAssistant Custom Component 
 Configuaration
+
 ## DumbIR ##
   - platform: dumbir
     name: ............
